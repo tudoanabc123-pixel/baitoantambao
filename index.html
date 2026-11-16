@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng 3D: Quỹ Đạo Tâm Bão (Toán 10)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #020617; font-family: 'Inter', sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        /* Glassmorphism cho UI */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+        }
+        
+        /* Math Vector CSS */
+        .vec {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            line-height: 1;
+            margin: 0 2px;
+            vertical-align: middle;
+        }
+        .vec::before {
+            content: '→';
+            font-size: 11px;
+            line-height: 0.4;
+            margin-bottom: 1px;
+        }
+
+        /* Custom scrollbar cho input range */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #ef4444;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        /* Radar scan effect overlay */
+        .radar-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none;
+            background: radial-gradient(circle at center, rgba(168, 85, 247, 0.08) 0%, rgba(2, 6, 23, 0) 70%);
+            z-index: 2;
+        }
+    </style>
+</head>
+<body class="text-white">
+
+    <div class="radar-overlay"></div>
+    <!-- Container 3D -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay - Góc trái: Thông tin & Lời giải Toán học -->
+    <div class="absolute top-4 left-4 w-96 glass-panel rounded-xl p-5 z-10 max-h-[90vh] overflow-y-auto">
+        <h1 class="text-xl font-bold text-red-400 mb-2 border-b border-gray-600 pb-2 flex items-center">
+            <svg class="w-6 h-6 mr-2 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            Quỹ Đạo Tâm Bão
+        </h1>
+        
+        <p class="text-sm text-gray-300 mb-3 leading-relaxed">
+            Trong 12 giờ, bão di chuyển thẳng đều từ <br>
+            <span class="text-blue-400 font-bold whitespace-nowrap">A(13.8; 108.3)</span> tới 
+            <span class="text-orange-400 font-bold whitespace-nowrap">B(14.1; 106.3)</span>.
+        </p>
+
+        <div class="bg-slate-900 border border-slate-700 p-3 rounded-lg text-sm font-mono text-gray-200 mb-4 shadow-inner">
+            <div class="text-xs text-gray-400 mb-1">Cơ sở Toán học:</div>
+            <div class="mb-2 leading-relaxed">Tâm bão được dự báo di chuyển thẳng đều (vận tốc <span class="italic font-serif">v</span> không đổi) nên ta có:</div>
+            <div class="flex justify-center items-center font-bold text-lg mb-3">
+                <div class="flex flex-col items-center mx-2">
+                    <span class="border-b-2 border-white px-1">AM</span>
+                    <span>AB</span>
+                </div>
+                <span>=</span>
+                <div class="flex flex-col items-center mx-2 text-green-400">
+                    <span class="border-b-2 border-green-400 px-1"><span class="italic font-serif">v</span> . 9</span>
+                    <span><span class="italic font-serif">v</span> . 12</span>
+                </div>
+                <span>=</span>
+                <div class="flex flex-col items-center mx-2 text-green-400 w-8">
+                    <input type="text" maxlength="2" class="w-7 h-6 text-center text-sm font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 mb-[2px]" placeholder="?">
+                    <div class="w-full border-t-2 border-green-400"></div>
+                    <input type="text" maxlength="2" class="w-7 h-6 text-center text-sm font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 mt-[2px]" placeholder="?">
+                </div>
+                <span>.</span>
+            </div>
+            
+            <div class="text-[13px] leading-relaxed flex flex-wrap items-center mt-2 mb-3">
+                <span>Gọi M(x; y), khi đó </span>
+                <span class="whitespace-nowrap inline-flex items-center">
+                    <span class="vec font-bold italic font-serif mx-1">AM</span> 
+                    <span> = (</span>
+                    <input type="text" class="w-16 h-6 text-center text-[12px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 mx-1" placeholder="?">
+                    <span>;</span>
+                    <input type="text" class="w-16 h-6 text-center text-[12px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 mx-1" placeholder="?">
+                    <span>)</span>
+                </span>
+                <span class="mx-1"> và </span>
+                <span class="whitespace-nowrap inline-flex items-center">
+                    <span class="vec font-bold italic font-serif mx-1">AB</span> 
+                    <span> = (</span>
+                    <input type="text" class="w-12 h-6 text-center text-[12px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 mx-1" placeholder="?">
+                    <span>;</span>
+                    <input type="text" class="w-12 h-6 text-center text-[12px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 mx-1" placeholder="?">
+                    <span>).</span>
+                </span>
+            </div>
+
+            <div class="mb-3 text-[13px] leading-relaxed flex flex-wrap items-center">
+                <span class="vec font-bold italic font-serif">AB</span>, 
+                <span class="vec font-bold italic font-serif">AM</span> 
+                <span class="mx-1">cùng hướng nên</span>
+                <span class="vec font-bold italic font-serif">AM</span> 
+                <span class="mx-1">=</span>
+                <div class="flex flex-col items-center mx-1 w-6">
+                    <input type="text" maxlength="2" class="w-6 h-5 text-center text-[11px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 mb-[1px]" placeholder="?">
+                    <div class="w-full border-t border-gray-300"></div>
+                    <input type="text" maxlength="2" class="w-6 h-5 text-center text-[11px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 mt-[1px]" placeholder="?">
+                </div>
+                <span class="vec font-bold italic font-serif">AB</span>.
+            </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-700 p-3 rounded-lg text-sm flex flex-col justify-center text-gray-200 font-mono shadow-inner">
+            <div class="flex flex-col items-center justify-center w-full space-y-4">
+                <div class="flex items-center justify-center">
+                    <span>⇔</span>
+                    <div class="text-[40px] font-light font-sans text-gray-400 leading-[0.5] mx-1 pb-1">{</div>
+                    <div class="flex flex-col space-y-3 text-xs">
+                        <div class="flex items-center">
+                            <input type="text" class="w-20 h-6 text-center text-[12px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" placeholder="?">
+                            <span class="mx-2">=</span>
+                            <input type="text" class="w-24 h-6 text-center text-[12px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" placeholder="?">
+                        </div>
+                        <div class="flex items-center">
+                            <input type="text" class="w-20 h-6 text-center text-[12px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" placeholder="?">
+                            <span class="mx-2">=</span>
+                            <input type="text" class="w-24 h-6 text-center text-[12px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" placeholder="?">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-center">
+                    <span class="mr-1">⇔</span>
+                    <div class="text-[40px] font-light font-sans text-gray-400 leading-[0.5] mx-1 pb-1">{</div>
+                    <div class="flex flex-col space-y-2 text-xs">
+                        <div class="flex items-center">
+                            <span class="w-6 text-right">x =</span>
+                            <input type="text" class="w-16 h-6 ml-2 text-center text-[12px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400" placeholder="?">
+                        </div>
+                        <div class="flex items-center">
+                            <span class="w-6 text-right">y =</span>
+                            <input type="text" class="w-16 h-6 ml-2 text-center text-[12px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400" placeholder="?">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4 text-center text-[13px] font-sans font-bold text-green-400 flex items-center justify-center">
+                Vậy M (
+                <input id="input-m-x" type="text" class="w-16 h-6 text-center text-[12px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 mx-1" placeholder="?">
+                ;
+                <input id="input-m-y" type="text" class="w-16 h-6 text-center text-[12px] font-bold text-white bg-slate-800 border border-slate-500 rounded focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 mx-1" placeholder="?">
+                )
+            </div>
+        </div>
+    </div>
+
+    <!-- UI Overlay - Góc phải: Bảng điều khiển Radar -->
+    <div class="absolute top-4 right-4 w-80 glass-panel rounded-xl p-5 z-10">
+        <div class="text-center mb-5 border-b border-gray-600 pb-4">
+            <div class="text-[12px] text-gray-400 uppercase tracking-widest mb-2 font-bold">Thời gian làm bài</div>
+            <div id="countdown-display" class="text-5xl font-mono font-bold text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]">08:00</div>
+        </div>
+
+        <!-- Slider -->
+        <div class="mb-6 bg-slate-900 p-3 rounded-lg border border-slate-700">
+            <div class="relative w-full h-4 text-xs font-bold text-gray-400 mb-3">
+                <span class="absolute left-0 text-blue-400">0h (A)</span>
+                <span class="absolute left-[75%] -translate-x-1/2 text-yellow-400 whitespace-nowrap">9h (M)</span>
+                <span class="absolute right-0 text-orange-400">12h (B)</span>
+            </div>
+            <input type="range" id="time-slider" min="0" max="12" step="0.1" value="0">
+        </div>
+
+        <!-- Controls -->
+        <div class="flex space-x-2">
+            <button id="btn-play" class="flex-1 bg-green-600 hover:bg-green-500 text-white py-2 px-3 rounded-lg font-semibold transition duration-200 flex items-center justify-center shadow-lg shadow-green-500/30 uppercase text-sm tracking-wider">
+                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+                Phát
+            </button>
+            <button id="btn-choi-lai" class="bg-blue-600 hover:bg-blue-500 text-white py-2 px-3 rounded-lg font-semibold transition duration-200 flex items-center justify-center shadow-lg shadow-blue-500/30 uppercase text-sm tracking-wider" title="Chơi lại">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                Chơi lại
+            </button>
+            <!-- Nút Tắt/Bật Âm thanh -->
+            <button id="btn-mute" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-3 rounded-lg font-semibold transition duration-200 flex items-center justify-center shadow-lg" title="Bật/Tắt Âm">
+                <svg id="icon-mute" class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path></svg>
+            </button>
+        </div>
+
+        <!-- Nút thành công ẩn -->
+        <div id="success-container" class="mt-4 hidden">
+            <button id="btn-success-play" class="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white font-bold py-3 px-4 rounded-xl shadow-[0_0_15px_rgba(249,115,22,0.8)] animate-pulse transition duration-300 flex items-center justify-center uppercase text-sm tracking-wider">
+                ✨ Chạm để quan sát bão di chuyển
+            </button>
+        </div>
+    </div>
+
+    <!-- Script Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Các hằng số bài toán (Tọa độ thực tế)
+        const A = { x: 13.8, y: 108.3 };
+        const B = { x: 14.1, y: 106.3 };
+        
+        // Vectơ v (Vận tốc 1 giờ)
+        const v = { x: (B.x - A.x) / 12, y: (B.y - A.y) / 12 };
+
+        // Center map để hiển thị (Camera nhìn vào trung điểm)
+        const centerOffset = { x: 13.95, y: 107.3 }; 
+
+        let t = 0;
+        let isPlaying = false;
+        let targetTime = 12; // Mốc thời gian đích (9h cho M, 12h cho B)
+        let simulationSpeed = 1.5; // Tốc độ di chuyển của bão
+        let clock = new THREE.Clock();
+        
+        let totalTime = 8 * 60; // 8 phút
+        let currentTime = totalTime;
+        let timerInterval = null;
+
+        // Cấu hình Three.js
+        let scene, camera, renderer;
+        let stormCloud, rainSystem, rainGeo, lightningFlash;
+        let mMarkerObjs, arrowAM, arrowAB;
+        let isSuccess = false;
+        let countdownDisplay = document.getElementById('countdown-display');
+        let slider = document.getElementById('time-slider');
+        let playBtn = document.getElementById('btn-play');
+        let replayBtn = document.getElementById('btn-choi-lai');
+        let muteBtn = document.getElementById('btn-mute');
+
+        // Biến Âm Thanh (Web Audio API)
+        let audioCtx, noiseSource, masterGain;
+        let isMuted = true;
+        let lightningTimer = 0;
+
+        window.onload = function () {
+            init();
+            animate();
+        };
+
+        function init() {
+            // 1. Scene & Camera
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x1a0b2e, 0.25); 
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(centerOffset.x, centerOffset.y, 4);
+            camera.up.set(0, 1, 0);
+            camera.lookAt(centerOffset.x, centerOffset.y, 0);
+
+            // 2. Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setClearColor(0x1a0b2e, 1);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // 3. Lưới bản đồ
+            const gridHelper = new THREE.GridHelper(10, 50, 0xa855f7, 0x4c1d95);
+            gridHelper.rotation.x = Math.PI / 2;
+            gridHelper.position.set(centerOffset.x, centerOffset.y, -0.1);
+            scene.add(gridHelper);
+
+            // 4. Đường Quỹ Đạo Bão (Đường giá vectơ màu xanh dương, dày gấp 4 lần)
+            const trajPoints = [];
+            trajPoints.push(new THREE.Vector3(A.x, A.y, 0));
+            trajPoints.push(new THREE.Vector3(B.x, B.y, 0));
+            
+            const startVec = new THREE.Vector3(A.x - v.x * 6, A.y - v.y * 6, -0.02);
+            const endVec = new THREE.Vector3(B.x + v.x * 6, B.y + v.y * 6, -0.02);
+            const lineDir = new THREE.Vector3().subVectors(endVec, startVec);
+            const lineLength = lineDir.length();
+            
+            // Dùng Mesh hình trụ (CylinderGeometry) để đảm bảo độ dày hiển thị gấp 4 lần trên mọi trình duyệt WebGL
+            const carrierGeom = new THREE.CylinderGeometry(0.012, 0.012, lineLength, 16);
+            const carrierMat = new THREE.MeshBasicMaterial({ color: 0x0ea5e9 }); // Màu xanh dương nổi bật
+            const carrierLine = new THREE.Mesh(carrierGeom, carrierMat);
+            
+            const midPoint = new THREE.Vector3().addVectors(startVec, endVec).multiplyScalar(0.5);
+            carrierLine.position.copy(midPoint);
+            carrierLine.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), lineDir.clone().normalize());
+            scene.add(carrierLine);
+
+            const trajGeom = new THREE.BufferGeometry().setFromPoints(trajPoints);
+            const trajMat = new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.05, gapSize: 0.03, linewidth: 2 });
+            const trajectory = new THREE.Line(trajGeom, trajMat);
+            trajectory.computeLineDistances(); 
+            scene.add(trajectory);
+
+            // 5. Đánh dấu các điểm mốc quan trọng
+            createPointMarker(A.x, A.y, 0x3b82f6, "A(13.8; 108.3)", "0h");
+            createPointMarker(B.x, B.y, 0xf97316, "B(14.1; 106.3)", "12h");
+
+            const mX = A.x + (9/12) * (B.x - A.x);
+            const mY = A.y + (9/12) * (B.y - A.y);
+            mMarkerObjs = createPointMarker(mX, mY, 0xef4444, "M(?; ?)", "9h");
+
+            arrowAB = drawVector(A.x, A.y, B.x, B.y, 0x38bdf8, "Vector AB", 0.015, 0.008);
+            arrowAM = drawVector(A.x, A.y, mX, mY, 0xfacc15, "Vector AM = 3/4 AB", 0.03, 0.011);
+
+            // 6. Mô hình Tâm bão (Bão xoáy)
+            createStorm();
+
+            // 6.5 Thêm Hạt Mưa và Sấm chớp
+            createWeatherEffects();
+
+            updateStormPosition();
+            startTimer();
+
+            // 7. Sự kiện UI
+            window.addEventListener('resize', onWindowResize);
+            
+            slider.addEventListener('input', (e) => {
+                t = parseFloat(e.target.value);
+                pauseSimulation();
+                updateStormPosition();
+            });
+
+            playBtn.addEventListener('click', () => {
+                if (isPlaying) {
+                    pauseSimulation();
+                } else {
+                    // Khi nhấn nút Phát: Bão luôn chạy từ A đến B (t = 0 -> 12)
+                    if (t >= 12 || targetTime === 9) {
+                        t = 0;
+                        slider.value = 0;
+                        updateStormPosition();
+                    }
+                    playSimulation(12, 1.5);
+                }
+            });
+
+            replayBtn.addEventListener('click', () => {
+                pauseSimulation();
+                t = 0;
+                targetTime = 12;
+                slider.value = 0;
+                updateStormPosition();
+                
+                currentTime = totalTime;
+                countdownDisplay.classList.remove('text-gray-500', 'text-[36px]');
+                countdownDisplay.classList.add('text-red-400', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+                updateTimerDisplay();
+                startTimer();
+            });
+
+            muteBtn.addEventListener('click', toggleMute);
+
+            const inputMX = document.getElementById('input-m-x');
+            const inputMY = document.getElementById('input-m-y');
+            
+            function checkAnswers() {
+                if (isSuccess) return;
+                const valX = inputMX.value.trim().replace(',', '.'); 
+                const valY = inputMY.value.trim().replace(',', '.');
+                
+                if (valX === "14.025" && valY === "106.8") {
+                    triggerSuccess();
+                }
+            }
+            inputMX.addEventListener('input', checkAnswers);
+            inputMY.addEventListener('input', checkAnswers);
+            
+            document.getElementById('btn-success-play').addEventListener('click', () => {
+                // Khi nhấn nút "Chạm để quan sát bão di chuyển": Bão đi từ từ đến điểm M (9h) và dừng lại
+                pauseSimulation();
+                t = 0;
+                slider.value = 0;
+                updateStormPosition();
+                playSimulation(9, 0.85);
+            });
+        }
+        
+        function triggerSuccess() {
+            isSuccess = true;
+            document.getElementById('success-container').classList.remove('hidden');
+            
+            mMarkerObjs.group.remove(mMarkerObjs.label);
+            mMarkerObjs.label = createTextSprite("M(14.025; 106.8) | 9h", 0xef4444, 48);
+            mMarkerObjs.label.position.set(0.08, 0.03, 0.2);
+            mMarkerObjs.group.add(mMarkerObjs.label);
+            
+            if (audioCtx && !isMuted) {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                osc.connect(gain).connect(masterGain);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.6);
+            }
+        }
+
+        function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = 0;
+            masterGain.connect(audioCtx.destination);
+
+            const bufferSize = audioCtx.sampleRate * 2; 
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            
+            noiseSource = audioCtx.createBufferSource();
+            noiseSource.buffer = buffer;
+            noiseSource.loop = true;
+            noiseSource.start();
+
+            const windFilter = audioCtx.createBiquadFilter();
+            windFilter.type = 'lowpass';
+            windFilter.frequency.value = 300;
+            const windGain = audioCtx.createGain();
+            windGain.gain.value = 2.5;
+
+            const rainFilter = audioCtx.createBiquadFilter();
+            rainFilter.type = 'bandpass';
+            rainFilter.frequency.value = 2000;
+            rainFilter.Q.value = 0.5;
+            const rainGain = audioCtx.createGain();
+            rainGain.gain.value = 0.5;
+
+            noiseSource.connect(windFilter).connect(windGain).connect(masterGain);
+            noiseSource.connect(rainFilter).connect(rainGain).connect(masterGain);
+        }
+
+        function toggleMute() {
+            if (!audioCtx) initAudio();
+            isMuted = !isMuted;
+            masterGain.gain.setTargetAtTime(isMuted ? 0 : 1, audioCtx.currentTime, 0.1);
+            
+            const icon = document.getElementById('icon-mute');
+            if (isMuted) {
+                icon.classList.add('text-red-400');
+                icon.classList.remove('text-green-400');
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>';
+            } else {
+                icon.classList.add('text-green-400');
+                icon.classList.remove('text-red-400');
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>';
+            }
+        }
+
+        function playThunderSound() {
+            if (!audioCtx || isMuted) return;
+            const thunderFilter = audioCtx.createBiquadFilter();
+            thunderFilter.type = 'lowpass';
+            thunderFilter.frequency.setValueAtTime(500, audioCtx.currentTime);
+            thunderFilter.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 1.5);
+            
+            const thunderGain = audioCtx.createGain();
+            thunderGain.gain.setValueAtTime(6, audioCtx.currentTime);
+            thunderGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
+
+            noiseSource.connect(thunderFilter).connect(thunderGain).connect(masterGain);
+            
+            setTimeout(() => {
+                thunderGain.disconnect();
+                thunderFilter.disconnect();
+            }, 2000);
+        }
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (currentTime > 0) {
+                    currentTime--;
+                    updateTimerDisplay();
+                } else {
+                    clearInterval(timerInterval);
+                    countdownDisplay.classList.remove('text-red-400', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+                    countdownDisplay.classList.add('text-gray-500', 'text-[36px]');
+                    countdownDisplay.innerText = "HẾT GIỜ";
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            let m = Math.floor(currentTime / 60);
+            let s = currentTime % 60;
+            countdownDisplay.innerText = (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+        }
+
+        function createPointMarker(x, y, color, text1, text2) {
+            const group = new THREE.Group();
+            group.position.set(x, y, 0);
+
+            const geom = new THREE.RingGeometry(0.02, 0.04, 32);
+            const mat = new THREE.MeshBasicMaterial({ color: color, side: THREE.DoubleSide });
+            const ring = new THREE.Mesh(geom, mat);
+            group.add(ring);
+
+            const coreGeom = new THREE.CircleGeometry(0.015, 16);
+            const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const core = new THREE.Mesh(coreGeom, coreMat);
+            core.position.set(0, 0, 0.001);
+            group.add(core);
+
+            const label = createTextSprite(text1 + " | " + text2, color, 48);
+            // Đặt nhãn lệch hẳn sang bên phải giá vectơ (neo trái) và nâng cao độ Z lên 0.2 để luôn nằm trên con bão
+            const yOffset = text2.includes("12h") ? -0.03 : 0.03;
+            label.position.set(0.08, yOffset, 0.2);
+            group.add(label);
+
+            scene.add(group);
+            return { group, ring, core, label };
+        }
+
+        function drawVector(x1, y1, x2, y2, color, labelText, zOffset, radius = 0.008) {
+            const dir = new THREE.Vector3(x2 - x1, y2 - y1, 0);
+            const length = dir.length();
+            dir.normalize();
+
+            const group = new THREE.Group();
+            group.position.set(x1, y1, zOffset);
+
+            const headLength = 0.09;
+            const headRadius = radius * 2.8;
+            const shaftLength = Math.max(0.01, length - headLength);
+
+            const mat = new THREE.MeshBasicMaterial({ color: color });
+
+            // Thân vectơ dày gấp 2 lần
+            const shaftGeom = new THREE.CylinderGeometry(radius, radius, shaftLength, 16);
+            const shaft = new THREE.Mesh(shaftGeom, mat);
+            shaft.position.y = shaftLength / 2;
+            group.add(shaft);
+
+            // Đầu mũi tên vectơ
+            const headGeom = new THREE.ConeGeometry(headRadius, headLength, 16);
+            const head = new THREE.Mesh(headGeom, mat);
+            head.position.y = shaftLength + headLength / 2;
+            group.add(head);
+
+            group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+            scene.add(group);
+            return { group, mat, baseColor: color };
+        }
+
+        function createWeatherEffects() {
+            const rainCount = 15000;
+            rainGeo = new THREE.BufferGeometry();
+            const rainPos = new Float32Array(rainCount * 3);
+            for(let i = 0; i < rainCount; i++) {
+                rainPos[i*3] = centerOffset.x + (Math.random() - 0.5) * 20;
+                rainPos[i*3+1] = centerOffset.y + (Math.random() - 0.5) * 20;
+                rainPos[i*3+2] = Math.random() * 5;
+            }
+            rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+            const rainMat = new THREE.PointsMaterial({
+                color: 0xcbd5e1,
+                size: 0.02,
+                transparent: true,
+                opacity: 0.6
+            });
+            rainSystem = new THREE.Points(rainGeo, rainMat);
+            scene.add(rainSystem);
+
+            lightningFlash = new THREE.PointLight(0xdb2777, 0, 50, 2);
+            lightningFlash.position.set(centerOffset.x, centerOffset.y, 4);
+            scene.add(lightningFlash);
+        }
+
+        function createStorm() {
+            stormCloud = new THREE.Group();
+
+            const geometry1 = new THREE.PlaneGeometry(3.0, 3.0);
+            const texture1 = createStormTexture(0xff1166, 0.1);
+            const material1 = new THREE.MeshBasicMaterial({ map: texture1, transparent: true, opacity: 0.7, depthWrite: false });
+            const mesh1 = new THREE.Mesh(geometry1, material1);
+            stormCloud.add(mesh1);
+
+            const geometry2 = new THREE.PlaneGeometry(1.5, 1.5);
+            const texture2 = createStormTexture(0xffffff, 0.5);
+            const material2 = new THREE.MeshBasicMaterial({ map: texture2, transparent: true, opacity: 0.9, depthWrite: false });
+            const mesh2 = new THREE.Mesh(geometry2, material2);
+            mesh2.position.set(0, 0, 0.02);
+            stormCloud.add(mesh2);
+
+            const eyeGeom = new THREE.CircleGeometry(0.15, 32);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x020617 });
+            const eyeMesh = new THREE.Mesh(eyeGeom, eyeMat);
+            eyeMesh.position.set(0, 0, 0.03);
+            stormCloud.add(eyeMesh);
+
+            const eyeRingGeom = new THREE.RingGeometry(0.15, 0.18, 32);
+            const eyeRingMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide });
+            const eyeRingMesh = new THREE.Mesh(eyeRingGeom, eyeRingMat);
+            eyeRingMesh.position.set(0, 0, 0.04);
+            stormCloud.add(eyeRingMesh);
+
+            scene.add(stormCloud);
+        }
+
+        function createStormTexture(colorHex, swirlFactor) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            const cx = 256, cy = 256, maxRadius = 240;
+            const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxRadius);
+            
+            let colorStr = '#' + colorHex.toString(16).padStart(6, '0');
+            gradient.addColorStop(0, colorStr);
+            gradient.addColorStop(0.5, colorStr);
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+
+            ctx.strokeStyle = colorStr;
+            ctx.lineWidth = 18;
+            ctx.lineCap = 'round';
+
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                const angleOffset = (i / 5) * Math.PI * 2;
+                for (let a = 0; a < Math.PI * 4; a += 0.1) {
+                    const r = (a / (Math.PI * 4)) * maxRadius * 0.9;
+                    const angle = a * swirlFactor + angleOffset;
+                    const x = cx + r * Math.cos(angle);
+                    const y = cy + r * Math.sin(angle);
+                    if (a === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.globalAlpha = 0.4;
+                ctx.stroke();
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        function createTextSprite(message, colorHex, fontSize) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            context.font = `Bold ${fontSize}px Inter, sans-serif`;
+            
+            const metrics = context.measureText(message);
+            const textWidth = metrics.width;
+            canvas.width = Math.max(textWidth + 40, 128);
+            canvas.height = 80;
+
+            context.fillStyle = 'rgba(15, 23, 42, 0.92)';
+            context.strokeStyle = '#facc15'; // Viền vàng rực rỡ
+            context.lineWidth = 5;
+            
+            context.beginPath();
+            context.roundRect(4, 10, canvas.width - 8, 60, 12);
+            context.fill();
+            context.stroke();
+
+            context.font = `Bold ${fontSize}px Inter, sans-serif`;
+            context.fillStyle = '#fde047'; // Chữ màu vàng rực rỡ để dễ quan sát từ xa
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(message, canvas.width / 2, 40);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.renderOrder = 999; // Đảm bảo nhãn luôn được vẽ đè lên trên cùng, không bị mây bão che khuất
+            // Neo điểm gốc của Sprite ở cạnh trái (x = 0) để toàn bộ khung nhãn mở rộng sang bên phải điểm gốc
+            sprite.center.set(0, 0.5);
+            // Thu nhỏ kích thước nhãn giảm xuống 2 lần (0.55 -> 0.275) và giữ tỷ lệ khung hình chuẩn
+            const aspect = canvas.width / canvas.height;
+            sprite.scale.set(0.275 * aspect, 0.275, 1);
+            return sprite;
+        }
+
+        function updateStormPosition() {
+            const currentX = A.x + (t / 12) * (B.x - A.x);
+            const currentY = A.y + (t / 12) * (B.y - A.y);
+
+            if (stormCloud) {
+                stormCloud.position.set(currentX, currentY, 0.05);
+            }
+        }
+
+        function playSimulation(target = 12, speed = 1.5) {
+            targetTime = target;
+            simulationSpeed = speed;
+            isPlaying = true;
+            playBtn.innerHTML = `<svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg> Tạm Dừng`;
+            playBtn.classList.remove('bg-green-600', 'hover:bg-green-500');
+            playBtn.classList.add('bg-yellow-600', 'hover:bg-yellow-500');
+        }
+
+        function pauseSimulation() {
+            isPlaying = false;
+            playBtn.innerHTML = `<svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg> Phát`;
+            playBtn.classList.remove('bg-yellow-600', 'hover:bg-yellow-500');
+            playBtn.classList.add('bg-green-600', 'hover:bg-green-500');
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+
+            // Hiệu ứng nhấp nháy phát sáng liên tục cho giá vectơ AM và AB khi giải đúng điểm M
+            if (isSuccess) {
+                const elapsed = clock.getElapsedTime();
+                const pulse = (Math.sin(elapsed * 8) + 1) / 2; // Dao động nhịp nhàng từ 0 -> 1
+                
+                if (arrowAM && arrowAM.mat) {
+                    // Vectơ AM nhấp nháy sáng liên tục màu vàng rực rỡ
+                    const colorAM = new THREE.Color(0xfacc15).lerp(new THREE.Color(0xffffff), pulse * 0.85);
+                    arrowAM.mat.color.copy(colorAM);
+                }
+                if (arrowAB && arrowAB.mat) {
+                    // Vectơ AB nhấp nháy chuyển đổi liên tục giữa xanh và vàng sáng
+                    const colorAB = new THREE.Color(0x0ea5e9).lerp(new THREE.Color(0xfde047), pulse);
+                    arrowAB.mat.color.copy(colorAB);
+                }
+            }
+
+            if (isPlaying) {
+                t += delta * simulationSpeed;
+                if (t >= targetTime) {
+                    t = targetTime;
+                    pauseSimulation();
+                }
+                slider.value = t;
+                updateStormPosition();
+            }
+
+            if (stormCloud) {
+                stormCloud.children[0].rotation.z -= delta * 0.8;
+                stormCloud.children[1].rotation.z += delta * 1.2;
+            }
+
+            if (rainSystem) {
+                const positions = rainGeo.attributes.position.array;
+                for (let i = 0; i < positions.length / 3; i++) {
+                    positions[i * 3 + 2] -= delta * 5;
+                    if (positions[i * 3 + 2] < 0) {
+                        positions[i * 3 + 2] = 5;
+                    }
+                }
+                rainGeo.attributes.position.needsUpdate = true;
+            }
+
+            lightningTimer += delta;
+            if (lightningTimer > 3 + Math.random() * 5) {
+                lightningFlash.intensity = 3 + Math.random() * 5;
+                playThunderSound();
+                setTimeout(() => {
+                    if (lightningFlash) lightningFlash.intensity = 0;
+                }, 100 + Math.random() * 150);
+                lightningTimer = 0;
+            }
+
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
